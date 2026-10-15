@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#7d3c98">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Autoatendimento">
+<meta name="robots" content="noindex, nofollow">
+<title>Autoatendimento</title>
+<link rel="manifest" id="link-manifest" href="/api/manifest">
+<link rel="icon" type="image/png" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="stylesheet" href="/style.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+
+<div id="loading-overlay">
+    <div class="spinner"></div>
+    <p style="font-size:9.5pt; color:var(--text-muted); font-weight:600;">Carregando...</p>
+</div>
+
+<header id="header" hidden>
+    <div class="header-row">
+        <div class="header-titles">
+            <h1>🛍️ Autoatendimento</h1>
+            <p>Escolha os produtos, monte seu pedido e pague na hora ou depois</p>
+        </div>
+    </div>
+    <div class="local-badge" id="local-badge-txt">📍 Retirada em: ...</div>
+</header>
+
+<!-- Sem QR Code válido: não existe escolha manual de local -->
+<div class="tela-aviso" id="tela-aviso" hidden>
+    <div class="icone" id="aviso-icone">📷</div>
+    <h2 id="aviso-titulo">Escaneie o QR Code do local</h2>
+    <p id="aviso-msg">Aponte a câmera do celular para o QR Code colado no local onde você está para ver os produtos disponíveis.</p>
+</div>
+
+<div class="container" id="app" hidden>
+    <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="search" id="busca-produto" placeholder="Buscar produto..." autocomplete="off">
+    </div>
+    <div class="produtos-grid" id="produtos-grid"></div>
+    <div id="produtos-empty" hidden>Nenhum produto disponível neste local agora.</div>
+</div>
+
+<button type="button" class="cart-bar" id="cart-bar">
+    <div class="cart-bar-left">
+        <span class="cart-bar-count" id="cart-bar-count">0</span>
+        <span class="cart-bar-total" id="cart-bar-total">R$ 0,00</span>
+    </div>
+    <span class="cart-bar-cta">Ver pedido ➜</span>
+</button>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<!-- ===== CARRINHO ===== -->
+<div class="sheet-overlay" id="sheet-carrinho">
+    <div class="sheet-box">
+        <div class="sheet-header">
+            <h3>🧺 Seu pedido</h3>
+            <button type="button" class="sheet-close" data-fechar aria-label="Fechar">✕</button>
+        </div>
+        <div class="sheet-body" id="cart-lista"></div>
+        <div id="cart-empty" hidden>Seu carrinho está vazio.</div>
+        <div class="sheet-footer">
+            <div class="total-box" style="margin-bottom:12px;">
+                <span>Total</span>
+                <span id="cart-total-footer">R$ 0,00</span>
+            </div>
+            <button type="button" class="btn-primario" id="btn-ir-checkout">Continuar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== CPF ===== -->
+<div class="sheet-overlay" id="sheet-cpf">
+    <div class="sheet-box">
+        <div class="sheet-header">
+            <h3>👤 Quem está levando?</h3>
+            <button type="button" class="sheet-close" data-fechar aria-label="Fechar">✕</button>
+        </div>
+        <div class="sheet-body">
+            <div class="form-group">
+                <label for="input-cpf">Seu CPF (só números)</label>
+                <input type="text" id="input-cpf" class="campo-cpf" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="00000000000">
+                <span class="ajuda">Usamos o CPF apenas para identificar o seu pedido.</span>
+                <div class="erro-campo" id="erro-cpf"></div>
+            </div>
+            <label class="lembrar-row"><input type="checkbox" id="input-lembrar"> Lembrar meu CPF neste aparelho</label>
+            <div class="total-box">
+                <span>Total do pedido</span>
+                <span id="cpf-total-resumo">R$ 0,00</span>
+            </div>
+        </div>
+        <div class="sheet-footer">
+            <button type="button" class="btn-primario" id="btn-confirmar-cpf">Continuar</button>
+            <button type="button" class="btn-secundario" data-voltar="sheet-carrinho">⬅ Voltar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== É VOCÊ? ===== -->
+<div class="sheet-overlay center" id="sheet-confirma">
+    <div class="sheet-box">
+        <div class="sucesso-box">
+            <div class="confirma-cliente">
+                <div class="ola">Olá,</div>
+                <div class="nome" id="nome-confirma">-</div>
+                <div class="ola">é você?</div>
+            </div>
+            <button type="button" class="btn-primario" id="btn-sim-sou-eu" style="margin-top:20px;">✓ Sim, sou eu</button>
+            <button type="button" class="btn-secundario" id="btn-nao-sou-eu">Não, corrigir CPF</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== CADASTRO NOVO ===== -->
+<div class="sheet-overlay" id="sheet-novo">
+    <div class="sheet-box">
+        <div class="sheet-header">
+            <h3>🆕 Primeiro pedido?</h3>
+            <button type="button" class="sheet-close" data-fechar aria-label="Fechar">✕</button>
+        </div>
+        <div class="sheet-body">
+            <p style="font-size:9.5pt; color:var(--text-muted); line-height:1.5; margin-bottom:14px;">Não encontramos este CPF. Informe seu nome para criar o cadastro e continuar.</p>
+            <div class="form-group">
+                <label for="input-nome-novo">Seu nome</label>
+                <input type="text" id="input-nome-novo" autocomplete="name" maxlength="80" placeholder="Digite seu nome" style="text-transform:uppercase;">
+                <div class="erro-campo" id="erro-nome"></div>
+            </div>
+        </div>
+        <div class="sheet-footer">
+            <button type="button" class="btn-primario" id="btn-cadastrar">Cadastrar e continuar</button>
+            <button type="button" class="btn-secundario" data-voltar="sheet-cpf">⬅ Corrigir CPF</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== FORMA DE PAGAMENTO ===== -->
+<div class="sheet-overlay" id="sheet-pagamento">
+    <div class="sheet-box">
+        <div class="sheet-header">
+            <h3>💳 Como você quer pagar?</h3>
+            <button type="button" class="sheet-close" data-fechar aria-label="Fechar">✕</button>
+        </div>
+        <div class="sheet-body">
+            <div class="total-box" style="margin-bottom:16px;">
+                <span>Total do pedido</span>
+                <span id="pagamento-total">R$ 0,00</span>
+            </div>
+            <div class="pagamento-opcoes">
+                <button type="button" class="opcao-pagamento agora" id="opcao-pix" hidden>
+                    <span class="ic">📲</span>
+                    <span><span class="txt-title" style="display:block;">Pix</span><span class="txt-sub">Pague pelo app do seu banco</span></span>
+                </button>
+                <button type="button" class="opcao-pagamento agora" id="opcao-especie">
+                    <span class="ic">💵</span>
+                    <span><span class="txt-title" style="display:block;">Dinheiro</span><span class="txt-sub">Pagar em espécie</span></span>
+                </button>
+                <button type="button" class="opcao-pagamento depois" id="opcao-depois" hidden>
+                    <span class="ic">🕒</span>
+                    <span><span class="txt-title" style="display:block;">Pagar depois</span><span class="txt-sub">Fica pendente na sua conta</span></span>
+                </button>
+            </div>
+        </div>
+        <div class="sheet-footer">
+            <button type="button" class="btn-secundario" data-voltar="sheet-cpf" style="margin-top:0;">⬅ Voltar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== PIX ===== -->
+<div class="sheet-overlay" id="sheet-pix">
+    <div class="sheet-box">
+        <div class="sheet-header">
+            <h3>📲 Pagar com Pix</h3>
+            <button type="button" class="sheet-close" data-fechar aria-label="Fechar">✕</button>
+        </div>
+        <div class="sheet-body">
+            <div class="total-box" style="margin-bottom:14px;">
+                <span>Valor a pagar</span>
+                <span id="pix-total">R$ 0,00</span>
+            </div>
+            <div class="pix-box">
+                <div class="rotulo">Chave Pix</div>
+                <div class="pix-chave-row">
+                    <input type="text" id="pix-chave-exibida" readonly>
+                    <button type="button" id="btn-copiar-pix">📋 Copiar</button>
+                </div>
+            </div>
+            <div class="aviso-pendente">Copie a chave, pague o valor no app do seu banco e depois toque em <strong>Já paguei</strong>. O pedido fica registrado e o responsável confere o pagamento.</div>
+        </div>
+        <div class="sheet-footer">
+            <button type="button" class="btn-primario" id="btn-finalizar-pix">✅ Já paguei, finalizar</button>
+            <button type="button" class="btn-secundario" data-voltar="sheet-pagamento">⬅ Voltar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== DINHEIRO ===== -->
+<div class="sheet-overlay" id="sheet-especie">
+    <div class="sheet-box">
+        <div class="sheet-header">
+            <h3>💵 Pagar em dinheiro</h3>
+            <button type="button" class="sheet-close" data-fechar aria-label="Fechar">✕</button>
+        </div>
+        <div class="sheet-body">
+            <div class="total-box" style="margin-bottom:14px;">
+                <span>Valor a pagar</span>
+                <span id="especie-total">R$ 0,00</span>
+            </div>
+            <div class="aviso-pendente">Deixe o valor em dinheiro no local, conforme combinado com o responsável. O pedido fica registrado e o pagamento é conferido depois.</div>
+        </div>
+        <div class="sheet-footer">
+            <button type="button" class="btn-primario" id="btn-finalizar-especie">✅ Confirmar pedido</button>
+            <button type="button" class="btn-secundario" data-voltar="sheet-pagamento">⬅ Voltar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== PAGAR DEPOIS ===== -->
+<div class="sheet-overlay" id="sheet-depois">
+    <div class="sheet-box">
+        <div class="sheet-header">
+            <h3>🕒 Pagar depois</h3>
+            <button type="button" class="sheet-close" data-fechar aria-label="Fechar">✕</button>
+        </div>
+        <div class="sheet-body">
+            <p style="font-size:9.5pt; color:var(--text-muted); margin-bottom:16px; line-height:1.5;">Seu pedido fica registrado como pendente. O pagamento é feito depois, até a data que você escolher.</p>
+            <div class="total-box" style="margin-bottom:16px;">
+                <span>Total do pedido</span>
+                <span id="depois-total">R$ 0,00</span>
+            </div>
+            <div class="form-group">
+                <label for="input-vencimento">Pagar até quando?</label>
+                <input type="date" id="input-vencimento">
+                <span class="ajuda" id="depois-ajuda"></span>
+                <div class="erro-campo" id="erro-data"></div>
+            </div>
+        </div>
+        <div class="sheet-footer">
+            <button type="button" class="btn-primario" id="btn-finalizar-depois">✅ Confirmar pedido</button>
+            <button type="button" class="btn-secundario" data-voltar="sheet-pagamento">⬅ Voltar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SUCESSO ===== -->
+<div class="sheet-overlay center" id="sheet-sucesso">
+    <div class="sheet-box">
+        <div class="sucesso-box">
+            <div class="sucesso-icon">✓</div>
+            <div class="sucesso-titulo" id="sucesso-titulo">Pedido registrado!</div>
+            <div class="sucesso-msg" id="sucesso-msg"></div>
+            <button type="button" class="btn-primario" id="btn-novo-pedido">Fazer novo pedido</button>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
