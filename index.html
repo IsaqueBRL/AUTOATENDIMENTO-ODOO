@@ -27,6 +27,9 @@
             <h1>🛍️ Autoatendimento</h1>
             <p>Escolha os produtos, monte seu pedido e pague na hora ou depois</p>
         </div>
+        <button type="button" class="user-chip" id="user-chip" hidden aria-label="Minha conta">
+            <span aria-hidden="true">👤</span><span class="user-chip-nome" id="user-chip-nome"></span>
+        </button>
     </div>
     <div class="local-badge" id="local-badge-txt">📍 Retirada em: ...</div>
 </header>
@@ -114,6 +117,20 @@
             </div>
             <button type="button" class="btn-primario" id="btn-sim-sou-eu" style="margin-top:20px;">✓ Sim, sou eu</button>
             <button type="button" class="btn-secundario" id="btn-nao-sou-eu">Não, corrigir CPF</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MINHA CONTA (nome no canto superior direito) ===== -->
+<div class="sheet-overlay center" id="sheet-conta">
+    <div class="sheet-box">
+        <div class="sucesso-box">
+            <div class="confirma-cliente">
+                <div class="ola">Você está identificado como</div>
+                <div class="nome" id="conta-nome">-</div>
+            </div>
+            <button type="button" class="btn-primario" id="btn-conta-ok" data-fechar style="margin-top:20px;">Ok</button>
+            <button type="button" class="btn-secundario" id="btn-sair-conta">Não sou eu / Trocar CPF</button>
         </div>
     </div>
 </div>

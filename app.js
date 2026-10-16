@@ -17,6 +17,11 @@
         gravar(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* sem armazenamento: segue sem lembrar */ } },
         apagar(k) { try { localStorage.removeItem(k); } catch (e) { /* ok */ } }
     };
+    // "ISAQUE M." -> "Isaque"
+    function primeiroNome(nome) {
+        const w = String(nome || '').trim().split(/\s+/)[0] || '';
+        return w.charAt(0).toLocaleUpperCase('pt-BR') + w.slice(1).toLocaleLowerCase('pt-BR');
+    }
     function criar(tag, classe, texto) {
         const el = document.createElement(tag);
         if (classe) el.className = classe;
@@ -274,13 +279,18 @@
     }
 
     // Depois de identificar o cliente: na abertura do site, só volta para os produtos; no pagamento, segue para pagar.
+    function mostrarUsuario() {
+        $('user-chip-nome').textContent = primeiroNome(estado.nomeMascarado) || 'Cliente';
+        $('user-chip').hidden = false;
+    }
     function seguirDepoisDeIdentificar() {
+        estado.identificado = true;
+        mostrarUsuario();
         if (estado.cpfInicial) {
             estado.cpfInicial = false;
-            estado.identificado = true;
             $('sheet-cpf').classList.remove('inicio');
             fecharTudo();
-            aviso('Olá, ' + estado.nomeMascarado + '! Escolha seus produtos.', 'success');
+            aviso('Olá, ' + primeiroNome(estado.nomeMascarado) + '! Escolha seus produtos.', 'success');
         } else {
             abrirPagamento();
         }
@@ -396,9 +406,20 @@
         $('sucesso-msg').textContent = msg + ' Obrigado!';
         abrir('sheet-sucesso');
     }
-    $('btn-novo-pedido').addEventListener('click', () => { estado.identificado = false; fecharTudo(); });
+    $('btn-novo-pedido').addEventListener('click', fecharTudo);
 
     $('busca-produto').addEventListener('input', renderProdutos);
+
+    // ---------- conta (nome no canto superior direito) ----------
+    $('user-chip').addEventListener('click', () => { $('conta-nome').textContent = estado.nomeMascarado || '-'; abrir('sheet-conta'); });
+    $('btn-sair-conta').addEventListener('click', () => {
+        estado.identificado = false; estado.cpf = ''; estado.nomeMascarado = ''; estado.podeDepois = false;
+        guardar.apagar(CHAVE_CPF);
+        $('user-chip').hidden = true;
+        fecharTudo();
+        cpfInicialPendente = true;
+        abrirCpfInicial();      // outra pessoa informa o CPF
+    });
 
     // ---------- convite para instalar o app ----------
     // Android/computador: usa o botão nativo de instalação do navegador (evento beforeinstallprompt).
@@ -447,16 +468,35 @@
     // e o CPF é pedido na hora de pagar, como antes.
     function abrirCpfInicial() {
         if (!cpfInicialPendente) return;
+        if (estado.identificado) { cpfInicialPendente = false; return; }
+        if (document.querySelector('.sheet-overlay.show')) return; // espera o convite fechar (ele chama de novo)
         cpfInicialPendente = false;
-        if (estado.identificado || document.querySelector('.sheet-overlay.show')) return;
-        if (/^\d{11}$/.test(guardar.ler(CHAVE_CPF) || '')) return; // já usou este aparelho: confirma o CPF na hora de pagar
+        if (/^\d{11}$/.test(guardar.ler(CHAVE_CPF) || '')) return; // já usou este aparelho: entra sozinho (entrarComCpfLembrado)
         estado.cpfInicial = true;
         $('sheet-cpf').classList.add('inicio');
         $('input-cpf').value = '';
-        $('input-lembrar').checked = false;
+        $('input-lembrar').checked = true;
         erroCampo('erro-cpf', '');
         abrir('sheet-cpf');
         setTimeout(() => $('input-cpf').focus(), 150);
+    }
+    // Cliente que já se identificou neste aparelho: entra sozinho e o nome aparece no canto superior direito.
+    async function entrarComCpfLembrado() {
+        const cpf = guardar.ler(CHAVE_CPF) || '';
+        if (!cpfValido(cpf)) return;
+        const r = await api('cpf_buscar', { cpf });
+        if (!r.dados.ok || estado.identificado) return;   // sem conexão ou já se identificou: segue como está
+        if (!r.dados.existe) {                            // cadastro não existe mais: pede o CPF de novo
+            guardar.apagar(CHAVE_CPF);
+            cpfInicialPendente = true;
+            abrirCpfInicial();
+            return;
+        }
+        estado.cpf = cpf;
+        estado.nomeMascarado = r.dados.nome_mascarado;
+        estado.podeDepois = !!r.dados.pode_pagar_depois;
+        estado.identificado = true;
+        mostrarUsuario();
     }
     function dispensarConvite() {
         $('sheet-instalar').classList.remove('show');
@@ -550,6 +590,7 @@
         // site pronto (com um QR válido). 1º aviso: convite para instalar o app. 2º aviso: CPF.
         instalarLiberado = true;
         cpfInicialPendente = true;
+        entrarComCpfLembrado();
         if (!mostrarConviteInstalar()) abrirCpfInicial();
 
         // mantém estoque em dia enquanto a tela está aberta
