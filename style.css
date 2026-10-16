@@ -252,4 +252,25 @@
     .sem-cadastro-nome { text-transform: uppercase; }
     .atualizando { text-align: center; font-size: 8.5pt; color: var(--text-muted); padding: 4px 0 10px; }
 
+    /* ===== CONVITE PARA INSTALAR O APP ===== */
+    .instalar-box { position: relative; padding: 26px 20px calc(20px + env(safe-area-inset-bottom)); text-align: center; overflow-y: auto; }
+    .instalar-x { position: absolute; top: 12px; right: 12px; }
+    .instalar-icone { width: 64px; height: 64px; border-radius: 16px; box-shadow: 0 4px 14px rgba(125,60,152,0.3); margin-bottom: 14px; }
+    .instalar-box h3 { font-size: 13.5pt; color: var(--text-strong); margin-bottom: 8px; }
+    .instalar-texto { font-size: 10pt; color: var(--text-muted); line-height: 1.5; margin-bottom: 18px; }
+    .instalar-passos { list-style: none; counter-reset: passo; text-align: left; margin-bottom: 18px; }
+    .instalar-passos li {
+        counter-increment: passo; display: flex; align-items: center; gap: 12px;
+        padding: 12px; background: #f8fafc; border-radius: 12px;
+        font-size: 10pt; line-height: 1.5; color: var(--text-body);
+    }
+    .instalar-passos li + li { margin-top: 8px; }
+    .instalar-passos li::before {
+        content: counter(passo); flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%;
+        background: var(--purple); color: #fff; font-weight: 800; font-size: 10pt;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .instalar-passos svg { display: inline-block; vertical-align: -4px; color: #007aff; }
+    .instalar-nota { font-size: 8.5pt; color: var(--text-muted); margin: -6px 0 16px; }
+
     [hidden] { display: none !important; }

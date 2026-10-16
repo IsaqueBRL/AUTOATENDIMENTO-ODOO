@@ -261,5 +261,45 @@
     </div>
 </div>
 
+<!-- ===== CONVITE PARA INSTALAR O APP ===== -->
+<div class="sheet-overlay" id="sheet-instalar" role="dialog" aria-modal="true" aria-labelledby="instalar-titulo">
+    <div class="sheet-box">
+        <div class="instalar-box">
+            <button type="button" class="sheet-close instalar-x" id="btn-instalar-x" aria-label="Fechar">✕</button>
+            <img class="instalar-icone" src="/icons/icon-192.png" alt="" width="64" height="64">
+
+            <!-- Android e computador: botão que abre a instalação do navegador -->
+            <div id="instalar-android">
+                <h3 id="instalar-titulo">Instale o app Autoatendimento</h3>
+                <p class="instalar-texto">Baixe o app para ter a melhor experiência, com mais rapidez e facilidade nos seus pedidos.</p>
+                <button type="button" class="btn-primario" id="btn-instalar-baixar">📲 Baixar app</button>
+                <button type="button" class="btn-secundario" id="btn-instalar-cancelar">Cancelar</button>
+            </div>
+
+            <!-- iPhone/iPad: o navegador não instala sozinho, então explicamos o passo a passo -->
+            <div id="instalar-ios" hidden>
+                <h3>Adicione o app à sua tela</h3>
+                <p class="instalar-texto">Para ter a melhor experiência, com mais rapidez e facilidade, adicione o Autoatendimento à tela de aplicativos do seu aparelho:</p>
+                <ol class="instalar-passos">
+                    <li>
+                        <span>Toque no botão <strong>Compartilhar</strong>
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M8 7l4-4 4 4"/><path d="M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8"/></svg>
+                            na barra do navegador.</span>
+                    </li>
+                    <li>
+                        <span>Role a lista e toque em <strong>Adicionar à Tela de Início</strong>
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>.</span>
+                    </li>
+                    <li>
+                        <span>Toque em <strong>Adicionar</strong>, no canto superior direito. O ícone do app vai aparecer na sua tela.</span>
+                    </li>
+                </ol>
+                <p class="instalar-nota" id="instalar-ios-safari" hidden>Dica: se a opção não aparecer, abra este site no Safari.</p>
+                <button type="button" class="btn-primario" id="btn-instalar-entendi">Entendi</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
