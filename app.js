@@ -56,6 +56,8 @@
         cpf: '',
         nomeMascarado: '',
         podeDepois: false,
+        identificado: false,     // CPF já confirmado logo na abertura (não pergunta de novo ao pagar)
+        cpfInicial: false,       // a tela de CPF está aberta na abertura do site, não no pagamento
         requestId: null,
         enviando: false
     };
@@ -223,6 +225,9 @@
 
     $('btn-ir-checkout').addEventListener('click', () => {
         if (qtdCarrinho() === 0) { aviso('Seu carrinho está vazio.', 'warning'); return; }
+        if (estado.identificado && estado.cpf) { abrirPagamento(); return; }   // já se identificou ao abrir o site
+        estado.cpfInicial = false;
+        $('sheet-cpf').classList.remove('inicio');
         $('cpf-total-resumo').textContent = brl(totalCarrinho());
         const lembrado = guardar.ler(CHAVE_CPF) || '';
         $('input-cpf').value = /^\d{11}$/.test(lembrado) ? lembrado : '';
@@ -268,7 +273,20 @@
         if ($('input-lembrar').checked) guardar.gravar(CHAVE_CPF, estado.cpf); else guardar.apagar(CHAVE_CPF);
     }
 
-    $('btn-sim-sou-eu').addEventListener('click', () => { lembrarCpfSeQuiser(); abrirPagamento(); });
+    // Depois de identificar o cliente: na abertura do site, só volta para os produtos; no pagamento, segue para pagar.
+    function seguirDepoisDeIdentificar() {
+        if (estado.cpfInicial) {
+            estado.cpfInicial = false;
+            estado.identificado = true;
+            $('sheet-cpf').classList.remove('inicio');
+            fecharTudo();
+            aviso('Olá, ' + estado.nomeMascarado + '! Escolha seus produtos.', 'success');
+        } else {
+            abrirPagamento();
+        }
+    }
+
+    $('btn-sim-sou-eu').addEventListener('click', () => { lembrarCpfSeQuiser(); seguirDepoisDeIdentificar(); });
 
     let cadastrando = false;
     $('btn-cadastrar').addEventListener('click', async () => {
@@ -284,8 +302,8 @@
             estado.nomeMascarado = r.dados.nome_mascarado;
             estado.podeDepois = !!r.dados.pode_pagar_depois;
             lembrarCpfSeQuiser();
-            aviso('Cadastro feito!', 'success');
-            abrirPagamento();
+            if (!estado.cpfInicial) aviso('Cadastro feito!', 'success');
+            seguirDepoisDeIdentificar();
         } finally {
             cadastrando = false;
             btn.disabled = false; btn.textContent = 'Cadastrar e continuar';
@@ -378,7 +396,7 @@
         $('sucesso-msg').textContent = msg + ' Obrigado!';
         abrir('sheet-sucesso');
     }
-    $('btn-novo-pedido').addEventListener('click', fecharTudo);
+    $('btn-novo-pedido').addEventListener('click', () => { estado.identificado = false; fecharTudo(); });
 
     $('busca-produto').addEventListener('input', renderProdutos);
 
@@ -389,6 +407,7 @@
     const DIAS_SEM_INSISTIR = 3;      // depois de "Cancelar", só volta a perguntar depois desses dias
     let instalarEvento = null;        // evento guardado do navegador (só existe quando dá para instalar)
     let instalarLiberado = false;     // só convida depois que o site terminou de carregar
+    let cpfInicialPendente = false;   // depois do convite (1º aviso), pede o CPF (2º aviso) uma única vez
 
     function jaEstaInstalado() {
         return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
@@ -403,19 +422,46 @@
     function conviteSilenciado() { return Number(guardar.ler(CHAVE_INSTALAR_ATE)) > Date.now(); }
     function silenciarConvite(dias) { guardar.gravar(CHAVE_INSTALAR_ATE, String(Date.now() + dias * 86400000)); }
 
+    // Devolve true se mostrou o convite.
     function mostrarConviteInstalar() {
-        if (!instalarLiberado || jaEstaInstalado() || conviteSilenciado()) return;
-        if (document.querySelector('.sheet-overlay.show')) return; // não interrompe quem está montando o pedido
+        if (!instalarLiberado || jaEstaInstalado() || conviteSilenciado()) return false;
+        if (document.querySelector('.sheet-overlay.show')) return false; // não interrompe quem está montando o pedido
         const ios = ehIOS();
-        if (!ios && !instalarEvento) return; // navegador sem suporte a instalação: não há o que oferecer
+        if (!ios && !instalarEvento) return false; // navegador sem suporte a instalação: não há o que oferecer
         $('instalar-android').hidden = ios;
         $('instalar-ios').hidden = !ios;
         $('instalar-ios-safari').hidden = !ios || ehSafari();
         abrir('sheet-instalar');
+        return true;
+    }
+    // Android/computador: o navegador às vezes libera a instalação alguns instantes depois de abrir. Espera um pouco
+    // para o convite poder ser o primeiro aviso.
+    function esperarLiberarInstalacao(ms) {
+        return new Promise((ok) => {
+            if (jaEstaInstalado() || conviteSilenciado() || ehIOS() || instalarEvento) { ok(); return; }
+            const limite = Date.now() + ms;
+            const t = setInterval(() => { if (instalarEvento || Date.now() >= limite) { clearInterval(t); ok(); } }, 100);
+        });
+    }
+    // 2º aviso: pede o CPF para quem ainda não tem CPF guardado neste aparelho. Quem fechar a tela segue para os produtos
+    // e o CPF é pedido na hora de pagar, como antes.
+    function abrirCpfInicial() {
+        if (!cpfInicialPendente) return;
+        cpfInicialPendente = false;
+        if (estado.identificado || document.querySelector('.sheet-overlay.show')) return;
+        if (/^\d{11}$/.test(guardar.ler(CHAVE_CPF) || '')) return; // já usou este aparelho: confirma o CPF na hora de pagar
+        estado.cpfInicial = true;
+        $('sheet-cpf').classList.add('inicio');
+        $('input-cpf').value = '';
+        $('input-lembrar').checked = false;
+        erroCampo('erro-cpf', '');
+        abrir('sheet-cpf');
+        setTimeout(() => $('input-cpf').focus(), 150);
     }
     function dispensarConvite() {
         $('sheet-instalar').classList.remove('show');
         silenciarConvite(DIAS_SEM_INSISTIR);
+        abrirCpfInicial();
     }
 
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -428,6 +474,7 @@
         silenciarConvite(3650);        // já instalou: não pergunta mais
         $('sheet-instalar').classList.remove('show');
         aviso('App instalado! Procure o ícone na sua tela.', 'success');
+        abrirCpfInicial();
     });
 
     $('btn-instalar-baixar').addEventListener('click', async () => {
@@ -442,6 +489,7 @@
         } catch (e) {
             silenciarConvite(DIAS_SEM_INSISTIR);
         }
+        abrirCpfInicial();
     });
     $('btn-instalar-cancelar').addEventListener('click', dispensarConvite);
     $('btn-instalar-entendi').addEventListener('click', dispensarConvite);
@@ -496,11 +544,13 @@
         $('header').hidden = false;
         $('app').hidden = false;
         await carregarProdutos(false);
+        await esperarLiberarInstalacao(2000);
         $('loading-overlay').classList.add('hide');
 
-        // site pronto (com um QR válido): agora sim convida a pessoa a instalar o app
+        // site pronto (com um QR válido). 1º aviso: convite para instalar o app. 2º aviso: CPF.
         instalarLiberado = true;
-        setTimeout(mostrarConviteInstalar, 1200);
+        cpfInicialPendente = true;
+        if (!mostrarConviteInstalar()) abrirCpfInicial();
 
         // mantém estoque em dia enquanto a tela está aberta
         setInterval(() => { if (!document.hidden && !estado.enviando) carregarProdutos(true); }, 45000);

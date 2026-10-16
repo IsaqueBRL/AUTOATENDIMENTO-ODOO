@@ -236,6 +236,8 @@
 
     .lembrar-row { display: flex; align-items: center; gap: 8px; font-size: 9.5pt; font-weight: 600; color: var(--text-body); margin: 4px 0 14px; }
     .lembrar-row input { width: 18px; height: 18px; accent-color: var(--purple); }
+    /* CPF pedido na abertura do site: ainda não existe pedido, então some o total e o "Voltar" */
+    #sheet-cpf.inicio .total-box, #sheet-cpf.inicio .btn-secundario { display: none; }
 
     .confirma-cliente { text-align: center; padding: 10px 0 6px; }
     .confirma-cliente .ola { font-size: 10pt; color: var(--text-muted); }
