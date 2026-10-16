@@ -1,5 +1,5 @@
 // Service worker simples: guarda só os arquivos do app (visual). NUNCA guarda respostas da API.
-const VERSAO = "ad-v1";
+const VERSAO = "ad-v2";
 const ARQUIVOS = ["/index.html", "/style.css", "/app.js", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {

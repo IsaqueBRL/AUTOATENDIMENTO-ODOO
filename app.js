@@ -382,6 +382,75 @@
 
     $('busca-produto').addEventListener('input', renderProdutos);
 
+    // ---------- convite para instalar o app ----------
+    // Android/computador: usa o botão nativo de instalação do navegador (evento beforeinstallprompt).
+    // iPhone/iPad: o navegador não permite instalar por código, então mostramos o passo a passo.
+    const CHAVE_INSTALAR_ATE = 'ad_instalar_ate';
+    const DIAS_SEM_INSISTIR = 3;      // depois de "Cancelar", só volta a perguntar depois desses dias
+    let instalarEvento = null;        // evento guardado do navegador (só existe quando dá para instalar)
+    let instalarLiberado = false;     // só convida depois que o site terminou de carregar
+
+    function jaEstaInstalado() {
+        return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+    }
+    function ehIOS() {
+        // iPadOS moderno se identifica como "Mac", então também olhamos se tem tela de toque
+        return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    }
+    function ehSafari() {
+        return !/crios|fxios|edgios|opios|gsa\//i.test(navigator.userAgent);
+    }
+    function conviteSilenciado() { return Number(guardar.ler(CHAVE_INSTALAR_ATE)) > Date.now(); }
+    function silenciarConvite(dias) { guardar.gravar(CHAVE_INSTALAR_ATE, String(Date.now() + dias * 86400000)); }
+
+    function mostrarConviteInstalar() {
+        if (!instalarLiberado || jaEstaInstalado() || conviteSilenciado()) return;
+        if (document.querySelector('.sheet-overlay.show')) return; // não interrompe quem está montando o pedido
+        const ios = ehIOS();
+        if (!ios && !instalarEvento) return; // navegador sem suporte a instalação: não há o que oferecer
+        $('instalar-android').hidden = ios;
+        $('instalar-ios').hidden = !ios;
+        $('instalar-ios-safari').hidden = !ios || ehSafari();
+        abrir('sheet-instalar');
+    }
+    function dispensarConvite() {
+        $('sheet-instalar').classList.remove('show');
+        silenciarConvite(DIAS_SEM_INSISTIR);
+    }
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();            // guarda o evento para abrir a instalação só quando a pessoa tocar em "Baixar app"
+        instalarEvento = e;
+        mostrarConviteInstalar();      // se o site já carregou, convida agora; senão convida quando terminar de carregar
+    });
+    window.addEventListener('appinstalled', () => {
+        instalarEvento = null;
+        silenciarConvite(3650);        // já instalou: não pergunta mais
+        $('sheet-instalar').classList.remove('show');
+        aviso('App instalado! Procure o ícone na sua tela.', 'success');
+    });
+
+    $('btn-instalar-baixar').addEventListener('click', async () => {
+        const ev = instalarEvento;
+        if (!ev) { dispensarConvite(); return; }
+        instalarEvento = null;         // cada evento só pode ser usado uma vez
+        $('sheet-instalar').classList.remove('show');
+        try {
+            ev.prompt();               // precisa ser chamado direto no toque da pessoa
+            const escolha = await ev.userChoice;
+            if (escolha.outcome !== 'accepted') silenciarConvite(DIAS_SEM_INSISTIR);
+        } catch (e) {
+            silenciarConvite(DIAS_SEM_INSISTIR);
+        }
+    });
+    $('btn-instalar-cancelar').addEventListener('click', dispensarConvite);
+    $('btn-instalar-entendi').addEventListener('click', dispensarConvite);
+    $('btn-instalar-x').addEventListener('click', dispensarConvite);
+    $('sheet-instalar').addEventListener('click', (e) => { if (e.target === e.currentTarget) dispensarConvite(); });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && $('sheet-instalar').classList.contains('show')) dispensarConvite();
+    });
+
     // ---------- início ----------
     function telaAviso(icone, titulo, msg) {
         $('loading-overlay').classList.add('hide');
@@ -428,6 +497,10 @@
         $('app').hidden = false;
         await carregarProdutos(false);
         $('loading-overlay').classList.add('hide');
+
+        // site pronto (com um QR válido): agora sim convida a pessoa a instalar o app
+        instalarLiberado = true;
+        setTimeout(mostrarConviteInstalar, 1200);
 
         // mantém estoque em dia enquanto a tela está aberta
         setInterval(() => { if (!document.hidden && !estado.enviando) carregarProdutos(true); }, 45000);
