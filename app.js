@@ -184,7 +184,7 @@
             const linha = criar('div', 'cart-item');
             const info = criar('div', 'cart-item-info');
             info.append(criar('div', 'cart-item-nome', p.nome), criar('div', 'cart-item-preco', brl(p.preco) + ' / un.'));
-            const rem = criar('button', 'cart-item-remove', '🗑️');
+            const rem = criar('button', 'cart-item-remove', '✕');
             rem.type = 'button'; rem.setAttribute('aria-label', 'Remover');
             rem.addEventListener('click', () => { estado.carrinho.delete(id); renderProdutos(); renderCarrinho(); });
             linha.append(info, stepper('cart-item-stepper', id, q), criar('div', 'cart-item-subtotal', brl(p.preco * q)), rem);
