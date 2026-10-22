@@ -86,13 +86,47 @@
     }
 
     // ---------- telas (sheets) ----------
+    // O botão Voltar do celular fecha a tela aberta (antes ele saía do site no meio do pedido).
+    let camadaNoHistorico = false, ignorarPop = false, empurrarDepois = false;
     function abrir(id) {
+        const havia = !!document.querySelector('.sheet-overlay.show');
         document.querySelectorAll('.sheet-overlay.show').forEach(el => el.classList.remove('show'));
-        $(id).classList.add('show');
+        const el = $(id);
+        el.classList.add('show');
+        const caixa = el.querySelector('.sheet-box');
+        if (caixa) { caixa.setAttribute('tabindex', '-1'); try { caixa.focus({ preventScroll: true }); } catch (e) { /* ok */ } }
+        if (!havia && !camadaNoHistorico) {
+            if (ignorarPop) empurrarDepois = true;     // um "voltar" ainda está em andamento: registra a tela quando ele terminar
+            else { try { history.pushState({ tela: 1 }, ''); camadaNoHistorico = true; } catch (e) { /* ok */ } }
+        }
     }
     function fecharTudo() {
         document.querySelectorAll('.sheet-overlay.show').forEach(el => el.classList.remove('show'));
+        if (camadaNoHistorico) {
+            camadaNoHistorico = false;
+            ignorarPop = true;
+            try { history.back(); } catch (e) { ignorarPop = false; }
+        }
     }
+    window.addEventListener('popstate', () => {
+        if (ignorarPop) {
+            ignorarPop = false;
+            if (empurrarDepois) {
+                empurrarDepois = false;
+                if (document.querySelector('.sheet-overlay.show')) { try { history.pushState({ tela: 1 }, ''); camadaNoHistorico = true; } catch (e) { /* ok */ } }
+            }
+            return;
+        }
+        if (camadaNoHistorico) {
+            camadaNoHistorico = false;
+            document.querySelectorAll('.sheet-overlay.show').forEach(el => el.classList.remove('show'));
+        }
+    });
+    // telas de janela para leitores de tela
+    document.querySelectorAll('.sheet-overlay').forEach(el => { el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !$('sheet-instalar').classList.contains('show') && document.querySelector('.sheet-overlay.show')) fecharTudo();
+    });
     document.addEventListener('click', (e) => {
         const alvo = e.target.closest('[data-fechar], [data-voltar]');
         if (!alvo) return;
@@ -180,6 +214,7 @@
         $('cart-bar-total').textContent = brl(total);
         $('cart-bar').classList.toggle('show', qtd > 0);
         $('cart-total-footer').textContent = brl(total);
+        ['cpf-total-resumo', 'pagamento-total', 'pix-total', 'especie-total', 'depois-total'].forEach(id => { $(id).textContent = brl(total); });
 
         const lista = $('cart-lista');
         lista.replaceChildren();
@@ -379,7 +414,9 @@
                 carregarProdutos(true);
                 return;
             }
-            if (!r.rede) novaTentativa(); // erro definitivo: a próxima tentativa é um pedido novo
+            // Só um "não" claro do servidor (4xx) encerra esta tentativa. Falha de rede, 502/504 ou resposta quebrada podem
+            // ter criado o pedido: mantém a MESMA chave, e o servidor reconhece o reenvio sem duplicar.
+            if (!r.rede && r.status >= 400 && r.status < 500) novaTentativa();
             aviso(r.dados.error || 'Não foi possível registrar o pedido.', 'danger');
             if (r.status === 409) { await carregarProdutos(true); abrir('sheet-carrinho'); }
         } finally {
@@ -399,7 +436,7 @@
 
     function mostrarSucesso(d) {
         $('sucesso-titulo').textContent = 'Pedido registrado! ✅';
-        let msg = 'Pedido ' + d.numero + ' no valor de ' + brl(d.total) + '. ';
+        let msg = 'Pedido ' + d.numero + (d.total ? ' no valor de ' + brl(d.total) : '') + '. ';
         if (d.forma === 'pix') msg += 'Seu Pix será conferido pelo responsável.';
         else if (d.forma === 'especie') msg += 'Deixe o pagamento em dinheiro conforme combinado. Ele será conferido pelo responsável.';
         else msg += 'Pagamento combinado até ' + dataBR(d.vencimento) + '.';
@@ -475,7 +512,7 @@
         estado.cpfInicial = true;
         $('sheet-cpf').classList.add('inicio');
         $('input-cpf').value = '';
-        $('input-lembrar').checked = true;
+        $('input-lembrar').checked = false;     // só lembra o CPF se a pessoa marcar
         erroCampo('erro-cpf', '');
         abrir('sheet-cpf');
         setTimeout(() => $('input-cpf').focus(), 150);
@@ -594,7 +631,7 @@
         if (!mostrarConviteInstalar()) abrirCpfInicial();
 
         // mantém estoque em dia enquanto a tela está aberta
-        setInterval(() => { if (!document.hidden && !estado.enviando) carregarProdutos(true); }, 45000);
+        setInterval(() => { if (!document.hidden && !estado.enviando) carregarProdutos(true); }, 60000);
         document.addEventListener('visibilitychange', () => { if (!document.hidden && !estado.enviando) carregarProdutos(true); });
     }
 

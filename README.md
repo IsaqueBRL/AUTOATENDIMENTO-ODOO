@@ -31,6 +31,9 @@ No painel (PC), abra **QR CODES**, informe o endereço deste site, e imprima/bai
 
 ## Observações
 
-- O limite de tentativas fica na memória de cada instância (segura abusos simples, não é global).
+- O limite de tentativas fica na memória de cada instância (segura abusos simples, não é global). Os limites por IP são folgados de propósito, porque os clientes de um mesmo local costumam usar o mesmo Wi-Fi; os limites mais rígidos são por CPF.
+- Cada pedido leva uma chave única gravada no campo "Documento de origem" do pedido de venda (`AUTO:...`). Se o cliente reenviar o pedido (internet que caiu, tempo esgotado), o servidor reconhece a chave e retoma o mesmo pedido, sem duplicar, mesmo que outro servidor atenda.
+- Se um pedido falhar e o Odoo não deixar cancelá-lo, ele fica com a referência "AUTOATENDIMENTO - FALHA (conferir estoque e entrega)". Procure por ela no Odoo de vez em quando.
+- O "pagar depois" está liberado conforme a etiqueta do contato; não há controle de limite nem de faturas em atraso (decisão do dono).
 - CPF é gravado só com dígitos; nada de CPF em logs.
 - Nenhum pedido é marcado como pago sem confirmação do dono.

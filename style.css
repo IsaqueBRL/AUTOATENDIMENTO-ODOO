@@ -2,8 +2,8 @@
         --purple: #9b59b6;
         --purple-dark: #7d3c98;
         --purple-light: #f4e9f8;
-        --green: #2ecc71;
-        --green-dark: #219150;
+        --green: #1b7f45;          /* escurecido: texto branco com contraste suficiente (5:1) */
+        --green-dark: #146236;
         --orange: #e67e22;
         --red: #e74c3c;
         --text-strong: #0f172a;
@@ -29,13 +29,6 @@
     .header-titles { flex: 1; min-width: 0; }
     header h1 { font-size: 16.5pt; }
     header p { font-size: 9pt; opacity: 0.9; margin-top: 2px; }
-    .btn-icon-header {
-        display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-        width: 40px; height: 40px; border-radius: 11px;
-        background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3);
-        color: #fff; font-size: 14pt;
-    }
-    .btn-icon-header:active { background: rgba(255,255,255,0.3); }
     /* nome do cliente no canto superior direito (aspecto de login) */
     .user-chip {
         display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; max-width: 42%;
@@ -58,7 +51,7 @@
     .search-wrap { position: relative; margin-bottom: 14px; }
     .search-wrap input {
         width: 100%; padding: 13px 14px 13px 40px; border: 1px solid var(--border-soft);
-        border-radius: 12px; font-size: 11pt; background: #fff;
+        border-radius: 12px; font-size: 16px; background: #fff;
     }
     .search-wrap .search-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); font-size: 11pt; opacity: 0.5; }
 
@@ -69,7 +62,6 @@
         padding: 12px; display: flex; flex-direction: column; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
         position: relative; overflow: hidden;
     }
-    .produto-card.esgotado { opacity: 0.5; }
     .produto-thumb {
         width: 100%; aspect-ratio: 1.4; border-radius: 10px; margin-bottom: 8px;
         display: flex; align-items: center; justify-content: center; font-size: 24pt; font-weight: 800; color: #fff;
@@ -78,7 +70,6 @@
     .produto-preco { font-size: 12.5pt; font-weight: 800; color: var(--purple-dark); margin-bottom: 2px; }
     .produto-estoque { font-size: 7.8pt; color: var(--text-muted); margin-bottom: 8px; }
     .produto-estoque.baixo { color: var(--orange); font-weight: 700; }
-    .produto-estoque.zero { color: var(--red); font-weight: 700; }
 
     .btn-add-produto {
         width: 100%; padding: 10px; border-radius: 9px; border: none; background: var(--purple);
@@ -102,7 +93,7 @@
         position: fixed; left: 14px; right: 14px; bottom: 14px; max-width: 532px; margin: 0 auto;
         background: var(--green); color: #fff; border: none; border-radius: 14px;
         padding: 14px 18px; display: none; align-items: center; justify-content: space-between;
-        box-shadow: 0 6px 20px rgba(46,204,113,0.45); z-index: 40;
+        box-shadow: 0 6px 20px rgba(27,127,69,0.45); z-index: 40;
     }
     .cart-bar.show { display: flex; }
     .cart-bar-left { display: flex; align-items: center; gap: 10px; text-align: left; }
@@ -121,10 +112,10 @@
     .sheet-overlay.show { display: flex; }
     .sheet-overlay.center { align-items: center; padding: 16px; }
     .sheet-box {
-        background: #fff; width: 100%; max-width: 560px; max-height: 90vh; border-radius: 20px 20px 0 0;
+        background: #fff; width: 100%; max-width: 560px; max-height: 90vh; max-height: 90dvh; border-radius: 20px 20px 0 0;
         display: flex; flex-direction: column; box-shadow: 0 -6px 24px rgba(0,0,0,0.2);
     }
-    .sheet-overlay.center .sheet-box { border-radius: 18px; max-height: 92vh; }
+    .sheet-overlay.center .sheet-box { border-radius: 18px; max-height: 92vh; max-height: 92dvh; }
     .sheet-header {
         padding: 16px 16px 12px; border-bottom: 1px solid var(--border-soft);
         display: flex; align-items: center; gap: 10px;
@@ -174,7 +165,7 @@
     .form-group { margin-bottom: 14px; }
     .form-group label { display: block; font-size: 8.5pt; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .3px; margin-bottom: 6px; }
     .form-group input, .form-group select {
-        width: 100%; padding: 13px; border: 1px solid var(--border-soft); border-radius: 10px; font-size: 11.5pt; background: #fff;
+        width: 100%; padding: 13px; border: 1px solid var(--border-soft); border-radius: 10px; font-size: 16px; background: #fff;
     }
 
     .pagamento-opcoes { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
@@ -191,12 +182,6 @@
     .opcao-pagamento .txt-title { font-weight: 800; font-size: 11pt; color: var(--text-strong); }
     .opcao-pagamento .txt-sub { font-size: 8.5pt; color: var(--text-muted); margin-top: 1px; }
     .opcao-pagamento:active { background: #f8fafc; }
-
-    .resumo-box { background: #f8fafc; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; font-size: 10pt; }
-    .resumo-row { display: flex; justify-content: space-between; }
-    .resumo-row + .resumo-row { margin-top: 6px; }
-    .resumo-row strong { color: var(--text-strong); }
-    .resumo-row.faltando strong { color: var(--red); }
 
     /* ===== TELA DE SUCESSO ===== */
     .sucesso-box { text-align: center; padding: 30px 20px; }
@@ -256,13 +241,10 @@
     .pix-box { background: #f8fafc; border: 1px solid var(--border-soft); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
     .pix-box .rotulo { font-size: 8.5pt; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .3px; margin-bottom: 8px; }
     .pix-chave-row { display: flex; gap: 8px; }
-    .pix-chave-row input { flex: 1; min-width: 0; padding: 12px 14px; border: 1px solid var(--border-soft); border-radius: 10px; background: #fff; font-weight: 700; color: var(--purple-dark); font-size: 10.5pt; }
+    .pix-chave-row input { flex: 1; min-width: 0; padding: 12px 14px; border: 1px solid var(--border-soft); border-radius: 10px; background: #fff; font-weight: 700; color: var(--purple-dark); font-size: 16px; }
     .pix-chave-row button { flex-shrink: 0; padding: 0 16px; border: none; border-radius: 10px; background: var(--purple); color: #fff; font-weight: 700; font-size: 9.5pt; }
     .aviso-pendente { background: #fffaf0; border: 1px solid #fbd38d; color: #744210; border-radius: 12px; padding: 12px 14px; font-size: 9.5pt; line-height: 1.45; margin-bottom: 14px; }
 
-    .btn-link { background: none; border: none; color: var(--purple-dark); font-weight: 700; font-size: 9.5pt; padding: 8px; margin-top: 6px; width: 100%; text-decoration: underline; }
-    .sem-cadastro-nome { text-transform: uppercase; }
-    .atualizando { text-align: center; font-size: 8.5pt; color: var(--text-muted); padding: 4px 0 10px; }
 
     /* ===== CONVITE PARA INSTALAR O APP ===== */
     .instalar-box { position: relative; padding: 26px 20px calc(20px + env(safe-area-inset-bottom)); text-align: center; overflow-y: auto; }

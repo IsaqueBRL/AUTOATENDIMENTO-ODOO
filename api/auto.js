@@ -71,13 +71,23 @@ async function estoqueDoArmazem(wh, produtoIds) {
     const raiz = Array.isArray(wh.lot_stock_id) ? wh.lot_stock_id[0] : wh.view_location_id[0];
     const dominio = [["location_id", "child_of", raiz], ["location_id.usage", "=", "internal"], ["quantity", ">", 0]];
     if (produtoIds) dominio.push(["product_id", "in", produtoIds]);
+    const mapa = {};
+    try {
+        // o próprio Odoo soma por produto (uma resposta curta, sem limite de linhas)
+        const grupos = await execute("stock.quant", "read_group", [dominio], { fields: ["quantity:sum", "reserved_quantity:sum"], groupby: ["product_id"], lazy: false });
+        if (!Array.isArray(grupos)) throw new Error("read_group sem resultado");
+        grupos.forEach(g => {
+            if (!Array.isArray(g.product_id)) return;
+            mapa[g.product_id[0]] = (Number(g.quantity) || 0) - (Number(g.reserved_quantity) || 0);
+        });
+        return mapa;
+    } catch (e) { /* cai na leitura linha a linha abaixo */ }
     let quants;
     try {
-        quants = await execute("stock.quant", "search_read", [dominio], { fields: ["product_id", "quantity", "reserved_quantity"], limit: 10000 });
+        quants = await execute("stock.quant", "search_read", [dominio], { fields: ["product_id", "quantity", "reserved_quantity"] });
     } catch (e) {
-        quants = await execute("stock.quant", "search_read", [dominio], { fields: ["product_id", "quantity"], limit: 10000 });
+        quants = await execute("stock.quant", "search_read", [dominio], { fields: ["product_id", "quantity"] });
     }
-    const mapa = {};
     (quants || []).forEach(q => {
         if (!Array.isArray(q.product_id)) return;
         const livre = (q.quantity || 0) - (q.reserved_quantity || 0);
@@ -168,6 +178,7 @@ async function criarFatura(orderId) {
     const ctx = { active_model: "sale.order", active_id: orderId, active_ids: [orderId] };
     const antes = await execute("sale.order", "read", [[orderId]], { fields: ["invoice_ids"] });
     const idsAntes = (antes && antes[0] && antes[0].invoice_ids) || [];
+    if (idsAntes.length) return [];      // já faturado (pedido retomado depois de um reenvio)
     const wiz = await execute("sale.advance.payment.inv", "create", [{ advance_payment_method: "delivered" }], { context: ctx });
     await execute("sale.advance.payment.inv", "create_invoices", [[wiz]], { context: ctx });
     const depois = await execute("sale.order", "read", [[orderId]], { fields: ["invoice_ids"] });
@@ -217,8 +228,26 @@ async function destravar(orderId) {
     } catch (e) { /* Odoo mais antigo: sem o campo locked */ }
 }
 
+// Desfaz o pedido que não deu certo. Devolve true só se ficou TUDO como antes (pedido cancelado e nenhuma entrega feita).
+// Se não conseguir, marca o pedido como "FALHA" para o responsável conferir no Odoo.
 async function desfazerPedido(orderId) {
-    try { await execute("sale.order", "action_cancel", [[orderId]]); } catch (e) { /* melhor esforço */ }
+    let entregaFeita = false, cancelado = false;
+    try {
+        const feitas = await execute("stock.picking", "search_read", [[["sale_id", "=", orderId], ["state", "=", "done"]]], { fields: ["id"], limit: 1 });
+        entregaFeita = !!(feitas && feitas.length);
+    } catch (e) { entregaFeita = true; /* sem saber, trata como se tivesse saído */ }
+    try {
+        await execute("sale.order", "action_cancel", [[orderId]]);
+        cancelado = true;
+    } catch (e) {
+        console.error("não foi possível cancelar o pedido", orderId, semCpf(e.message));
+    }
+    const limpo = cancelado && !entregaFeita;
+    if (!limpo) {
+        console.error("ATENÇÃO: pedido", orderId, "ficou incompleto no Odoo (cancelado:", cancelado, "entrega feita:", entregaFeita, ")");
+        try { await execute("sale.order", "write", [[orderId], { client_order_ref: "AUTOATENDIMENTO - FALHA (conferir estoque e entrega)" }]); } catch (e) { /* melhor esforço */ }
+    }
+    return limpo;
 }
 
 // Um pedido por vez em cada local (dentro deste servidor), para dois clientes não levarem a mesma última unidade
@@ -247,7 +276,47 @@ function lerItens(brutos) {
     return [...mapa.entries()].map(([id, qtd]) => ({ id, qtd }));
 }
 
-async function criarPedido({ wh, parceiro, itens, forma, vencimento }) {
+// Procura no Odoo um pedido já criado com esta chave (vale entre servidores diferentes e depois de timeouts)
+async function pedidoDaChave(requestId) {
+    const r = await execute("sale.order", "search_read", [[["origin", "=", "AUTO:" + requestId], ["state", "!=", "cancel"]]], { fields: ["id", "state"], limit: 1 });
+    return (r && r[0]) || null;
+}
+
+async function resultadoDoPedido(orderId, forma, vencimento) {
+    try {
+        const ped = await execute("sale.order", "read", [[orderId]], { fields: ["name", "amount_total"] });
+        if (ped && ped[0]) return { ok: true, numero: ped[0].name || String(orderId), total: ped[0].amount_total || 0, forma, vencimento };
+    } catch (e) { console.error("ler pedido", orderId, semCpf(e.message)); }
+    // o pedido JÁ existe: não devolve erro ao cliente por causa de uma leitura que falhou
+    return { ok: true, numero: String(orderId), total: null, forma, vencimento };
+}
+
+// Tudo o que vem depois de o pedido estar confirmado e a entrega feita (não desfaz o pedido se falhar)
+async function finalizarPedido(orderId, vencimento) {
+    try { await destravar(orderId); } catch (e) { console.error("destravar", orderId, semCpf(e.message)); }
+    try {
+        const faturas = await criarFatura(orderId);
+        if (faturas.length) {
+            await aplicarContaNaFatura(faturas[0]);
+            await execute("account.move", "write", [[faturas[0]], { invoice_date_due: vencimento }]);
+        }
+    } catch (e) {
+        console.error("fatura do pedido", orderId, semCpf(e.message));
+    }
+}
+
+async function criarPedido({ wh, parceiro, itens, forma, vencimento, requestId }) {
+    // reenvio do mesmo pedido (internet caiu, outro servidor atendeu, tempo esgotou): retoma em vez de criar de novo
+    let orderId = null;
+    const existente = await pedidoDaChave(requestId);
+    if (existente && existente.state !== "draft") {
+        const pend = await execute("stock.picking", "search_read", [[["sale_id", "=", existente.id], ["state", "not in", ["done", "cancel"]]]], { fields: ["id"], limit: 1 });
+        if (pend && pend.length) await baixarEstoqueDoPedido(existente.id);
+        await finalizarPedido(existente.id, vencimento);
+        return resultadoDoPedido(existente.id, forma, vencimento);
+    }
+    if (existente) orderId = existente.id;      // rascunho que ficou pelo caminho: segue daqui
+
     const ids = itens.map(i => i.id);
 
     // preço e disponibilidade conferidos AGORA, direto no Odoo
@@ -281,6 +350,7 @@ async function criarPedido({ wh, parceiro, itens, forma, vencimento }) {
         validity_date: vencimento,
         note: "Autoatendimento · " + wh.name + " · " + rotulo,
         client_order_ref: "AUTOATENDIMENTO",
+        origin: "AUTO:" + requestId,      // chave do pedido: permite reconhecer um reenvio mesmo em outro servidor
         order_line: itens.map(it => [0, 0, {
             product_id: it.id,
             product_uom_qty: it.qtd,
@@ -289,31 +359,22 @@ async function criarPedido({ wh, parceiro, itens, forma, vencimento }) {
         }])
     };
     const vals = await onlyExistingFields("sale.order", base);
-    const orderId = await execute("sale.order", "create", [vals]);
+    if (!orderId) orderId = await execute("sale.order", "create", [vals]);
 
     try {
         await execute("sale.order", "action_confirm", [[orderId]]);
         await baixarEstoqueDoPedido(orderId);
     } catch (e) {
         console.error("Falha ao confirmar/baixar estoque do pedido", orderId, semCpf(e.message));
-        await desfazerPedido(orderId);
-        throw new ErroPublico("Não foi possível concluir o pedido agora. Nada foi cobrado. Tente novamente ou fale com o responsável.", 502);
+        const limpo = await desfazerPedido(orderId);
+        throw new ErroPublico(limpo
+            ? "Não foi possível concluir o pedido agora. Nada foi cobrado. Tente novamente ou fale com o responsável."
+            : "Não foi possível concluir o pedido e ele pode ter ficado incompleto. Fale com o responsável antes de tentar de novo.", 502);
     }
 
     // o que vem depois não desfaz o pedido: no pior caso o responsável gera a fatura pelo painel
-    try { await destravar(orderId); } catch (e) { console.error("destravar", orderId, semCpf(e.message)); }
-    try {
-        const faturas = await criarFatura(orderId);
-        if (faturas.length) {
-            await aplicarContaNaFatura(faturas[0]);
-            await execute("account.move", "write", [[faturas[0]], { invoice_date_due: vencimento }]);
-        }
-    } catch (e) {
-        console.error("fatura do pedido", orderId, semCpf(e.message));
-    }
-
-    const ped = await execute("sale.order", "read", [[orderId]], { fields: ["name", "amount_total"] });
-    return { ok: true, numero: (ped && ped[0] && ped[0].name) || String(orderId), total: (ped && ped[0] && ped[0].amount_total) || 0, forma, vencimento };
+    await finalizarPedido(orderId, vencimento);
+    return resultadoDoPedido(orderId, forma, vencimento);
 }
 
 // ---------- entrada ----------
@@ -338,7 +399,7 @@ export default async function handler(req, res) {
     };
 
     try {
-        barrar("geral", 200);
+        barrar("geral", 1500);       // muitos clientes podem usar o mesmo Wi-Fi/IP do local
         const wh = await armazemPorToken(body.token);
 
         if (acao === "local") {
@@ -350,7 +411,8 @@ export default async function handler(req, res) {
         }
 
         if (acao === "cpf_buscar") {
-            barrar("cpf", 15);
+            barrar("cpf", 60);
+            if (!limitar("cpf-busca:" + limparCpf(body.cpf), 12, JANELA)) throw new ErroPublico("Muitas tentativas com este CPF. Aguarde alguns minutos.", 429);
             const cpf = limparCpf(body.cpf);
             if (!cpfValido(cpf)) throw new ErroPublico("CPF inválido. Confira os 11 números.");
             const p = await parceiroPorCpf(cpf);
@@ -359,7 +421,8 @@ export default async function handler(req, res) {
         }
 
         if (acao === "cliente_criar") {
-            barrar("cadastro", 5);
+            barrar("cadastro", 20);
+            if (!limitar("cadastro-cpf:" + limparCpf(body.cpf), 5, JANELA)) throw new ErroPublico("Muitas tentativas com este CPF. Aguarde alguns minutos.", 429);
             const cpf = limparCpf(body.cpf);
             if (!cpfValido(cpf)) throw new ErroPublico("CPF inválido. Confira os 11 números.");
             const nome = normalizarNome(body.nome);
@@ -376,7 +439,7 @@ export default async function handler(req, res) {
         }
 
         if (acao === "pedido_criar") {
-            barrar("pedido", 8);
+            barrar("pedido", 40);
             const cpf = limparCpf(body.cpf);
             if (!cpfValido(cpf)) throw new ErroPublico("CPF inválido. Confira os 11 números.");
             if (!limitar("pedido-cpf:" + cpf, 20, 60 * 60 * 1000)) throw new ErroPublico("Muitos pedidos seguidos. Aguarde um pouco.", 429);
@@ -411,7 +474,7 @@ export default async function handler(req, res) {
                 if (forma === "depois" && !(await podePagarDepois(parceiro))) {
                     throw new ErroPublico("Pagar depois não está liberado para o seu cadastro. Escolha Pix ou dinheiro.", 403);
                 }
-                const r = await criarPedido({ wh, parceiro, itens, forma, vencimento });
+                const r = await criarPedido({ wh, parceiro, itens, forma, vencimento, requestId });
                 invalidar("produtos_" + wh.id); // o estoque mudou: a próxima lista de produtos precisa ser nova
                 return r;
             });
