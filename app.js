@@ -461,8 +461,12 @@
     // ---------- convite para instalar o app ----------
     // Android/computador: usa o botão nativo de instalação do navegador (evento beforeinstallprompt).
     // iPhone/iPad: o navegador não permite instalar por código, então mostramos o passo a passo.
-    const CHAVE_INSTALAR_ATE = 'ad_instalar_ate';
-    const DIAS_SEM_INSISTIR = 3;      // depois de "Cancelar", só volta a perguntar depois desses dias
+    // O convite aparece TODA vez que a pessoa entra ou recarrega o site. Só some quando o app já está instalado:
+    //  - dentro do app instalado (modo "standalone") ele nunca aparece;
+    //  - no Android/computador o navegador só libera a instalação se o app ainda NÃO estiver instalado,
+    //    então, instalado, não há convite;
+    //  - no iPhone/iPad o Safari não informa se o app está instalado, então lá o convite aparece no navegador
+    //    e some dentro do app da tela de início.
     let instalarEvento = null;        // evento guardado do navegador (só existe quando dá para instalar)
     let instalarLiberado = false;     // só convida depois que o site terminou de carregar
     let cpfInicialPendente = false;   // depois do convite (1º aviso), pede o CPF (2º aviso) uma única vez
@@ -477,12 +481,10 @@
     function ehSafari() {
         return !/crios|fxios|edgios|opios|gsa\//i.test(navigator.userAgent);
     }
-    function conviteSilenciado() { return Number(guardar.ler(CHAVE_INSTALAR_ATE)) > Date.now(); }
-    function silenciarConvite(dias) { guardar.gravar(CHAVE_INSTALAR_ATE, String(Date.now() + dias * 86400000)); }
 
     // Devolve true se mostrou o convite.
     function mostrarConviteInstalar() {
-        if (!instalarLiberado || jaEstaInstalado() || conviteSilenciado()) return false;
+        if (!instalarLiberado || jaEstaInstalado()) return false;
         if (document.querySelector('.sheet-overlay.show')) return false; // não interrompe quem está montando o pedido
         const ios = ehIOS();
         if (!ios && !instalarEvento) return false; // navegador sem suporte a instalação: não há o que oferecer
@@ -496,7 +498,7 @@
     // para o convite poder ser o primeiro aviso.
     function esperarLiberarInstalacao(ms) {
         return new Promise((ok) => {
-            if (jaEstaInstalado() || conviteSilenciado() || ehIOS() || instalarEvento) { ok(); return; }
+            if (jaEstaInstalado() || ehIOS() || instalarEvento) { ok(); return; }
             const limite = Date.now() + ms;
             const t = setInterval(() => { if (instalarEvento || Date.now() >= limite) { clearInterval(t); ok(); } }, 100);
         });
@@ -537,7 +539,6 @@
     }
     function dispensarConvite() {
         $('sheet-instalar').classList.remove('show');
-        silenciarConvite(DIAS_SEM_INSISTIR);
         abrirCpfInicial();
     }
 
@@ -548,7 +549,6 @@
     });
     window.addEventListener('appinstalled', () => {
         instalarEvento = null;
-        silenciarConvite(3650);        // já instalou: não pergunta mais
         $('sheet-instalar').classList.remove('show');
         aviso('App instalado! Procure o ícone na sua tela.', 'success');
         abrirCpfInicial();
@@ -561,11 +561,8 @@
         $('sheet-instalar').classList.remove('show');
         try {
             ev.prompt();               // precisa ser chamado direto no toque da pessoa
-            const escolha = await ev.userChoice;
-            if (escolha.outcome !== 'accepted') silenciarConvite(DIAS_SEM_INSISTIR);
-        } catch (e) {
-            silenciarConvite(DIAS_SEM_INSISTIR);
-        }
+            await ev.userChoice;
+        } catch (e) { /* a instalação não abriu: o convite volta na próxima vez que entrar */ }
         abrirCpfInicial();
     });
     $('btn-instalar-cancelar').addEventListener('click', dispensarConvite);
