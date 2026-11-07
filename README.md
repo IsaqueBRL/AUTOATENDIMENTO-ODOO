@@ -27,7 +27,7 @@ Depois de alterar variáveis, faça um novo deploy.
 
 ## QR Codes
 
-No painel (PC), abra **QR CODES**, informe o endereço deste site, e imprima/baixe um QR por local. Cada QR carrega um código calculado com `QR_SECRET`; mudar a `QR_SECRET` invalida todos os QR já impressos.
+No painel (PC), abra **QR CODES**, informe o endereço deste site e imprima/baixe um QR por local. Cada QR carrega um código calculado com `QR_SECRET`; mudar a `QR_SECRET` invalida todos os QR já impressos.
 
 ## Convite para instalar o app
 
