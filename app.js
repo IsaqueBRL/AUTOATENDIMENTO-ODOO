@@ -60,6 +60,8 @@
         carrinho: new Map(),     // id -> quantidade
         cpf: '',
         nomeMascarado: '',
+        temEmail: false,         // o site só sabe SE já existe, nunca o valor
+        temTelefone: false,
         identificado: false,     // CPF já confirmado logo na abertura (não pergunta de novo ao pagar)
         cpfInicial: false,       // a tela de CPF está aberta na abertura do site, não no pagamento
         requestId: null,
@@ -284,6 +286,7 @@
             estado.cpf = cpf;
             if (r.dados.existe) {
                 estado.nomeMascarado = r.dados.nome_mascarado;
+                guardarContato(r.dados);
                 $('nome-confirma').textContent = estado.nomeMascarado;
                 abrir('sheet-confirma');
             } else {
@@ -300,6 +303,11 @@
     $('btn-confirmar-cpf').addEventListener('click', confirmarCpf);
 
     $('btn-nao-sou-eu').addEventListener('click', () => { abrir('sheet-cpf'); $('input-cpf').focus(); });
+
+    function guardarContato(d) {
+        estado.temEmail = !!d.tem_email;
+        estado.temTelefone = !!d.tem_telefone;
+    }
 
     function lembrarCpfSeQuiser() {
         if ($('input-lembrar').checked) guardar.gravar(CHAVE_CPF, estado.cpf); else guardar.apagar(CHAVE_CPF);
@@ -337,6 +345,7 @@
             const r = await api('cliente_criar', { cpf: estado.cpf, nome });
             if (!r.dados.ok) { erroCampo('erro-nome', r.dados.error || 'Não foi possível cadastrar agora.'); return; }
             estado.nomeMascarado = r.dados.nome_mascarado;
+            guardarContato(r.dados);
             lembrarCpfSeQuiser();
             if (!estado.cpfInicial) aviso('Cadastro feito!', 'success');
             seguirDepoisDeIdentificar();
@@ -437,8 +446,59 @@
 
     $('busca-produto').addEventListener('input', renderProdutos);
 
-    // ---------- conta (nome no canto superior direito) ----------
-    $('user-chip').addEventListener('click', () => { $('conta-nome').textContent = estado.nomeMascarado || '-'; abrir('sheet-conta'); });
+    // ---------- meu perfil (nome no canto superior direito) ----------
+    const cpfComPontos = (c) => c.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4');
+    function mascaraTelefone(v) {
+        const d = v.replace(/\D/g, '').slice(0, 11);
+        if (d.length <= 2) return d;
+        if (d.length <= 6) return '(' + d.slice(0, 2) + ') ' + d.slice(2);
+        if (d.length <= 10) return '(' + d.slice(0, 2) + ') ' + d.slice(2, 6) + '-' + d.slice(6);
+        return '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7);
+    }
+    function preencherPerfil() {
+        const nome = primeiroNome(estado.nomeMascarado) || 'Cliente';
+        $('conta-avatar').textContent = nome.charAt(0).toLocaleUpperCase('pt-BR');
+        $('conta-ola').textContent = 'Olá, ' + nome + '! 👋';
+        $('conta-cpf').value = cpfComPontos(estado.cpf || '');
+        [['email', estado.temEmail, 'E-mail já cadastrado ✓', 'seuemail@exemplo.com'],
+         ['telefone', estado.temTelefone, 'Telefone já cadastrado ✓', '(92) 99999-8888']].forEach(([campo, tem, textoTem, textoVazio]) => {
+            const el = $('conta-' + campo);
+            el.value = '';
+            el.disabled = tem;
+            el.placeholder = tem ? textoTem : textoVazio;
+        });
+        const completo = estado.temEmail && estado.temTelefone;
+        $('conta-completo').hidden = !completo;
+        $('btn-conta-salvar').hidden = completo;
+        $('conta-sub').textContent = completo ? 'Está tudo certo por aqui.' : 'Complete seu cadastro para facilitar seus próximos pedidos.';
+        erroCampo('erro-conta', '');
+    }
+    $('user-chip').addEventListener('click', () => { preencherPerfil(); abrir('sheet-conta'); });
+    $('conta-telefone').addEventListener('input', (e) => { e.target.value = mascaraTelefone(e.target.value); erroCampo('erro-conta', ''); });
+    $('conta-email').addEventListener('input', () => erroCampo('erro-conta', ''));
+
+    let salvandoPerfil = false;
+    $('btn-conta-salvar').addEventListener('click', async () => {
+        if (salvandoPerfil) return;
+        const email = $('conta-email').disabled ? '' : $('conta-email').value.trim();
+        const telefone = $('conta-telefone').disabled ? '' : $('conta-telefone').value.trim();
+        if (!email && !telefone) { erroCampo('erro-conta', 'Preencha o e-mail ou o telefone.'); return; }
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { erroCampo('erro-conta', 'E-mail inválido. Confira e tente de novo.'); return; }
+        if (telefone && !/^\d{10,11}$/.test(telefone.replace(/\D/g, ''))) { erroCampo('erro-conta', 'Telefone inválido. Use DDD + número.'); return; }
+        salvandoPerfil = true;
+        const btn = $('btn-conta-salvar');
+        btn.disabled = true; btn.textContent = 'Salvando...';
+        try {
+            const r = await api('perfil_salvar', { cpf: estado.cpf, email, telefone });
+            if (!r.dados.ok) { erroCampo('erro-conta', r.dados.error || 'Não foi possível salvar agora.'); return; }
+            guardarContato(r.dados);
+            fecharTudo();
+            aviso('Dados salvos! Obrigado 😊', 'success');
+        } finally {
+            salvandoPerfil = false;
+            btn.disabled = false; btn.textContent = 'Salvar';
+        }
+    });
     $('btn-sair-conta').addEventListener('click', () => {
         estado.identificado = false; estado.cpf = ''; estado.nomeMascarado = '';
         guardar.apagar(CHAVE_CPF);
@@ -523,6 +583,7 @@
         }
         estado.cpf = cpf;
         estado.nomeMascarado = r.dados.nome_mascarado;
+        guardarContato(r.dados);
         estado.identificado = true;
         mostrarUsuario();
     }

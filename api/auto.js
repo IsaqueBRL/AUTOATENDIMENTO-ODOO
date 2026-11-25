@@ -119,9 +119,29 @@ async function listarProdutos(wh) {
 // ---------- clientes (CPF) ----------
 async function parceiroPorCpf(cpf) {
     const r = await execute("res.partner", "search_read", [["|", ["vat", "=", cpf], ["vat", "=", cpfFormatado(cpf)]]], {
-        fields: ["id", "name", "category_id"], order: "id asc", limit: 1
+        fields: ["id", "name", "email", "phone"], order: "id asc", limit: 1
     });
     return (r && r[0]) || null;
+}
+
+// O site só fica sabendo SE já existe e-mail/telefone, nunca o valor (o CPF sozinho não prova quem é a pessoa)
+function statusContato(p) {
+    return { tem_email: !!(p && p.email), tem_telefone: !!(p && p.phone) };
+}
+
+function emailValido(v) {
+    return v.length <= 120 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+}
+
+// "92999998888" -> "(92) 99999-8888" (aceita com +55 na frente); devolve null se não for um telefone brasileiro válido
+function telefoneFormatado(v) {
+    let d = String(v || "").replace(/\D/g, "");
+    if ((d.length === 12 || d.length === 13) && d.startsWith("55")) d = d.slice(2);
+    if (d.length !== 10 && d.length !== 11) return null;
+    if (d[0] === "0" || d[1] === "0") return null;
+    return d.length === 11
+        ? "(" + d.slice(0, 2) + ") " + d.slice(2, 7) + "-" + d.slice(7)
+        : "(" + d.slice(0, 2) + ") " + d.slice(2, 6) + "-" + d.slice(6);
 }
 
 async function tipoIdentificacaoCpf() {
@@ -145,7 +165,7 @@ async function criarParceiro(cpf, nome) {
         l10n_latam_identification_type_id: tipoId || undefined
     });
     const id = await execute("res.partner", "create", [vals]);
-    return { id, name: nome, category_id: [] };
+    return { id, name: nome };
 }
 
 // ---------- pedido ----------
@@ -560,7 +580,33 @@ export default async function handler(req, res) {
             if (!cpfValido(cpf)) throw new ErroPublico("CPF inválido. Confira os 11 números.");
             const p = await parceiroPorCpf(cpf);
             if (!p) return res.status(200).json({ ok: true, existe: false });
-            return res.status(200).json({ ok: true, existe: true, nome_mascarado: mascararNome(p.name) });
+            return res.status(200).json({ ok: true, existe: true, nome_mascarado: mascararNome(p.name), ...statusContato(p) });
+        }
+
+        if (acao === "perfil_salvar") {
+            barrar("perfil", 30);
+            const cpf = limparCpf(body.cpf);
+            if (!cpfValido(cpf)) throw new ErroPublico("CPF inválido. Confira os 11 números.");
+            if (!limitar("perfil-cpf:" + cpf, 8, JANELA)) throw new ErroPublico("Muitas tentativas com este CPF. Aguarde alguns minutos.", 429);
+            const email = String(body.email || "").trim().toLowerCase();
+            const telefoneBruto = String(body.telefone || "").trim();
+            if (!email && !telefoneBruto) throw new ErroPublico("Preencha o e-mail ou o telefone.");
+            if (email && !emailValido(email)) throw new ErroPublico("E-mail inválido. Confira e tente de novo.");
+            const telefone = telefoneBruto ? telefoneFormatado(telefoneBruto) : null;
+            if (telefoneBruto && !telefone) throw new ErroPublico("Telefone inválido. Use DDD + número, ex.: (92) 99999-8888.");
+            const p = await parceiroPorCpf(cpf);
+            if (!p) throw new ErroPublico("Cadastro não encontrado. Informe seu CPF novamente.", 404);
+            // Só preenche o que está vazio: quem sabe apenas o CPF de alguém não consegue trocar o contato já cadastrado
+            const vals = {};
+            const mantidos = [];
+            if (email) { if (p.email) mantidos.push("email"); else vals.email = email; }
+            if (telefone) { if (p.phone) mantidos.push("telefone"); else vals.phone = telefone; }
+            if (Object.keys(vals).length) {
+                const ok = await onlyExistingFields("res.partner", vals);
+                if (Object.keys(ok).length) await execute("res.partner", "write", [[p.id], ok]);
+            }
+            const atual = { email: p.email || vals.email, phone: p.phone || vals.phone };
+            return res.status(200).json({ ok: true, mantidos, ...statusContato(atual) });
         }
 
         if (acao === "cliente_criar") {
@@ -571,14 +617,14 @@ export default async function handler(req, res) {
             const nome = normalizarNome(body.nome);
             if (!nomeValido(nome)) throw new ErroPublico("Digite seu nome (apenas letras).");
             const jaExiste = await parceiroPorCpf(cpf);
-            if (jaExiste) return res.status(200).json({ ok: true, existe: true, nome_mascarado: mascararNome(jaExiste.name) });
+            if (jaExiste) return res.status(200).json({ ok: true, existe: true, nome_mascarado: mascararNome(jaExiste.name), ...statusContato(jaExiste) });
             try {
                 await criarParceiro(cpf, nome);
             } catch (e) {
                 console.error("criar cliente:", semCpf(e.message));
                 throw new ErroPublico("Não foi possível fazer seu cadastro agora. Fale com o responsável.", 502);
             }
-            return res.status(200).json({ ok: true, existe: true, nome_mascarado: mascararNome(nome) });
+            return res.status(200).json({ ok: true, existe: true, nome_mascarado: mascararNome(nome), tem_email: false, tem_telefone: false });
         }
 
         if (acao === "pedido_criar") {
