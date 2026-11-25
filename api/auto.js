@@ -441,7 +441,7 @@ async function finalizarPedido(orderId, vencimento) {
         const faturas = await criarFatura(orderId);
         if (faturas.length) {
             await aplicarContaNaFatura(faturas[0]);
-            await execute("account.move", "write", [[faturas[0]], { invoice_date_due: vencimento }]);
+            await execute("account.move", "write", [[faturas[0]], { invoice_date: hojeISO(), invoice_date_due: vencimento }]);
         }
     } catch (e) {
         console.error("fatura do pedido", orderId, semCpf(e.message));
