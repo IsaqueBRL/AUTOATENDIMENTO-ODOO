@@ -141,13 +141,6 @@
     }
 
     // ---------- produtos ----------
-    const CORES = ['#9b59b6', '#2ecc71', '#e67e22', '#3498db', '#e74c3c', '#16a085', '#d35400', '#8e44ad'];
-    function corDoProduto(nome) {
-        let h = 0;
-        for (let i = 0; i < nome.length; i++) h = nome.charCodeAt(i) + ((h << 5) - h);
-        return CORES[Math.abs(h) % CORES.length];
-    }
-
     function totalCarrinho() {
         let t = 0;
         estado.carrinho.forEach((q, id) => { const p = produtoPorId(id); if (p) t += p.preco * q; });
@@ -190,19 +183,20 @@
         lista.forEach(p => {
             const noCarrinho = estado.carrinho.get(p.id) || 0;
             const card = criar('div', 'produto-card');
-            const thumb = criar('div', 'produto-thumb', (p.nome.charAt(0) || '?').toUpperCase());
-            thumb.style.background = corDoProduto(p.nome);
             const estq = criar('div', 'produto-estoque' + (p.estoque <= 5 ? ' baixo' : ''), p.estoque + ' disponível(is)');
             const area = criar('div', 'qtd-area');
             if (noCarrinho > 0) {
                 area.append(stepper('qtd-stepper', p.id, noCarrinho));
             } else {
-                const b = criar('button', 'btn-add-produto', '➕ Adicionar');
+                const b = criar('button', 'btn-add-produto', '+');
                 b.type = 'button';
+                b.setAttribute('aria-label', 'Adicionar ' + p.nome);
                 b.addEventListener('click', () => mudarQtd(p.id, 1));
                 area.append(b);
             }
-            card.append(thumb, criar('div', 'produto-nome', p.nome), criar('div', 'produto-preco', brl(p.preco)), estq, area);
+            const info = criar('div', 'produto-info');
+            info.append(criar('div', 'produto-nome', p.nome), criar('div', 'produto-preco', brl(p.preco)), estq);
+            card.append(info, area);
             grid.append(card);
         });
     }

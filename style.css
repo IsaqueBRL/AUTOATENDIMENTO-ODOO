@@ -56,35 +56,35 @@
     .search-wrap .search-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); font-size: 11pt; opacity: 0.5; }
 
     /* ===== GRID DE PRODUTOS ===== */
-    .produtos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    /* lista compacta: uma linha por produto (nome/preço/estoque à esquerda, ação à direita) */
+    .produtos-grid { display: flex; flex-direction: column; gap: 8px; }
     .produto-card {
-        background: var(--bg-surface); border: 1px solid var(--border-soft); border-radius: 14px;
-        padding: 12px; display: flex; flex-direction: column; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-        position: relative; overflow: hidden;
+        background: var(--bg-surface); border: 1px solid var(--border-soft); border-radius: 12px;
+        padding: 10px 12px; display: flex; flex-direction: row; align-items: center; gap: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
     }
-    .produto-thumb {
-        width: 100%; aspect-ratio: 1.4; border-radius: 10px; margin-bottom: 8px;
-        display: flex; align-items: center; justify-content: center; font-size: 24pt; font-weight: 800; color: #fff;
-    }
-    .produto-nome { font-size: 10pt; font-weight: 700; color: var(--text-strong); line-height: 1.25; margin-bottom: 4px; min-height: 25px; }
-    .produto-preco { font-size: 12.5pt; font-weight: 800; color: var(--purple-dark); margin-bottom: 2px; }
-    .produto-estoque { font-size: 7.8pt; color: var(--text-muted); margin-bottom: 8px; }
+    .produto-info { flex: 1; min-width: 0; }
+    .produto-nome { font-size: 10pt; font-weight: 700; color: var(--text-strong); line-height: 1.25; margin-bottom: 2px; }
+    .produto-preco { font-size: 11.5pt; font-weight: 800; color: var(--purple-dark); }
+    .produto-estoque { font-size: 7.8pt; color: var(--text-muted); margin-top: 1px; }
     .produto-estoque.baixo { color: var(--orange); font-weight: 700; }
 
+    .qtd-area { flex-shrink: 0; }
     .btn-add-produto {
-        width: 100%; padding: 10px; border-radius: 9px; border: none; background: var(--purple);
-        color: #fff; font-weight: 700; font-size: 9.5pt; margin-top: auto;
+        width: 42px; height: 42px; padding: 0; border-radius: 10px; border: none; background: var(--purple);
+        color: #fff; font-weight: 700; font-size: 16pt; line-height: 1;
+        display: flex; align-items: center; justify-content: center; cursor: pointer;
     }
     .btn-add-produto:active { background: var(--purple-dark); }
     .btn-add-produto:disabled { background: #cbd5e1; }
 
-    .qtd-stepper { display: flex; align-items: center; gap: 0; margin-top: auto; }
+    .qtd-stepper { display: flex; align-items: center; gap: 0; }
     .qtd-stepper button {
-        width: 32px; height: 32px; border-radius: 8px; border: none; background: var(--purple);
-        color: #fff; font-size: 13pt; font-weight: 700; flex-shrink: 0;
+        width: 36px; height: 36px; border-radius: 9px; border: none; background: var(--purple);
+        color: #fff; font-size: 14pt; font-weight: 700; flex-shrink: 0; cursor: pointer;
     }
     .qtd-stepper button:active { background: var(--purple-dark); }
-    .qtd-stepper .qtd-val { flex: 1; text-align: center; font-weight: 800; font-size: 11pt; color: var(--text-strong); }
+    .qtd-stepper .qtd-val { min-width: 32px; text-align: center; font-weight: 800; font-size: 11pt; color: var(--text-strong); }
 
     #produtos-empty { text-align: center; color: var(--text-muted); padding: 40px 20px; font-size: 9.5pt; grid-column: 1 / -1; }
 
