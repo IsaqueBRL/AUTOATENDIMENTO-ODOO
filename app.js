@@ -60,7 +60,6 @@
         carrinho: new Map(),     // id -> quantidade
         cpf: '',
         nomeMascarado: '',
-        podeDepois: false,
         identificado: false,     // CPF já confirmado logo na abertura (não pergunta de novo ao pagar)
         cpfInicial: false,       // a tela de CPF está aberta na abertura do site, não no pagamento
         requestId: null,
@@ -285,7 +284,6 @@
             estado.cpf = cpf;
             if (r.dados.existe) {
                 estado.nomeMascarado = r.dados.nome_mascarado;
-                estado.podeDepois = !!r.dados.pode_pagar_depois;
                 $('nome-confirma').textContent = estado.nomeMascarado;
                 abrir('sheet-confirma');
             } else {
@@ -339,7 +337,6 @@
             const r = await api('cliente_criar', { cpf: estado.cpf, nome });
             if (!r.dados.ok) { erroCampo('erro-nome', r.dados.error || 'Não foi possível cadastrar agora.'); return; }
             estado.nomeMascarado = r.dados.nome_mascarado;
-            estado.podeDepois = !!r.dados.pode_pagar_depois;
             lembrarCpfSeQuiser();
             if (!estado.cpfInicial) aviso('Cadastro feito!', 'success');
             seguirDepoisDeIdentificar();
@@ -360,7 +357,6 @@
         const total = brl(totalCarrinho());
         ['pagamento-total', 'pix-total', 'especie-total', 'depois-total'].forEach(id => { $(id).textContent = total; });
         $('opcao-pix').hidden = !estado.pixChave;
-        $('opcao-depois').hidden = !estado.podeDepois;
         abrir('sheet-pagamento');
     }
 
@@ -444,7 +440,7 @@
     // ---------- conta (nome no canto superior direito) ----------
     $('user-chip').addEventListener('click', () => { $('conta-nome').textContent = estado.nomeMascarado || '-'; abrir('sheet-conta'); });
     $('btn-sair-conta').addEventListener('click', () => {
-        estado.identificado = false; estado.cpf = ''; estado.nomeMascarado = ''; estado.podeDepois = false;
+        estado.identificado = false; estado.cpf = ''; estado.nomeMascarado = '';
         guardar.apagar(CHAVE_CPF);
         $('user-chip').hidden = true;
         fecharTudo();
@@ -527,7 +523,6 @@
         }
         estado.cpf = cpf;
         estado.nomeMascarado = r.dados.nome_mascarado;
-        estado.podeDepois = !!r.dados.pode_pagar_depois;
         estado.identificado = true;
         mostrarUsuario();
     }

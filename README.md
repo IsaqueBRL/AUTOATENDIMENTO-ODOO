@@ -12,7 +12,6 @@ Site instalável (PWA) em que o cliente escaneia o QR Code do local, informa o C
 | `ODOO_API_KEY` | sim | Chave de API desse usuário |
 | `QR_SECRET` | sim | Senha longa (16+ caracteres). **A mesma** deve ser colocada no projeto do painel (PC) |
 | `PIX_CHAVE` | não | Reserva da chave Pix. O normal é definir a chave na tela QR CODES do painel |
-| `TAG_PAGAR_DEPOIS` | não | Etiqueta do contato liberado para pagar depois (padrão: `Autoatendimento: pagar depois`) |
 | `MAX_DIAS_VENCIMENTO` | não | Prazo máximo do "pagar depois" (padrão: 30) |
 | `FORCED_INVOICE_ACCOUNT_CODE` | não | Conta contábil forçada na fatura (padrão: `3.01.01.01.01.04`) |
 | `FUSO_HORARIO` | não | Padrão: `America/Manaus` |

@@ -19,7 +19,6 @@ import {
 export const config = { maxDuration: 30 };
 
 // ---------- configurações (todas opcionais; valores padrão abaixo) ----------
-const TAG_PAGAR_DEPOIS = process.env.TAG_PAGAR_DEPOIS || "Autoatendimento: pagar depois";
 const MAX_DIAS_VENCIMENTO = Number(process.env.MAX_DIAS_VENCIMENTO) || 30;
 const CONTA_FATURA = process.env.FORCED_INVOICE_ACCOUNT_CODE || "3.01.01.01.01.04"; // mesma conta que o painel força nas faturas
 const FUSO = process.env.FUSO_HORARIO || "America/Manaus";
@@ -123,15 +122,6 @@ async function parceiroPorCpf(cpf) {
         fields: ["id", "name", "category_id"], order: "id asc", limit: 1
     });
     return (r && r[0]) || null;
-}
-
-// Só quem foi liberado no Odoo (marcador no contato) pode pagar depois
-async function podePagarDepois(parceiro) {
-    const ids = Array.isArray(parceiro.category_id) ? parceiro.category_id : [];
-    if (ids.length === 0) return false;
-    const cats = await execute("res.partner.category", "read", [ids], { fields: ["name"] });
-    const alvo = semAcento(TAG_PAGAR_DEPOIS);
-    return (cats || []).some(c => semAcento(c.name) === alvo);
 }
 
 async function tipoIdentificacaoCpf() {
@@ -570,7 +560,7 @@ export default async function handler(req, res) {
             if (!cpfValido(cpf)) throw new ErroPublico("CPF inválido. Confira os 11 números.");
             const p = await parceiroPorCpf(cpf);
             if (!p) return res.status(200).json({ ok: true, existe: false });
-            return res.status(200).json({ ok: true, existe: true, nome_mascarado: mascararNome(p.name), pode_pagar_depois: await podePagarDepois(p) });
+            return res.status(200).json({ ok: true, existe: true, nome_mascarado: mascararNome(p.name) });
         }
 
         if (acao === "cliente_criar") {
@@ -581,14 +571,14 @@ export default async function handler(req, res) {
             const nome = normalizarNome(body.nome);
             if (!nomeValido(nome)) throw new ErroPublico("Digite seu nome (apenas letras).");
             const jaExiste = await parceiroPorCpf(cpf);
-            if (jaExiste) return res.status(200).json({ ok: true, existe: true, nome_mascarado: mascararNome(jaExiste.name), pode_pagar_depois: await podePagarDepois(jaExiste) });
+            if (jaExiste) return res.status(200).json({ ok: true, existe: true, nome_mascarado: mascararNome(jaExiste.name) });
             try {
                 await criarParceiro(cpf, nome);
             } catch (e) {
                 console.error("criar cliente:", semCpf(e.message));
                 throw new ErroPublico("Não foi possível fazer seu cadastro agora. Fale com o responsável.", 502);
             }
-            return res.status(200).json({ ok: true, existe: true, nome_mascarado: mascararNome(nome), pode_pagar_depois: false });
+            return res.status(200).json({ ok: true, existe: true, nome_mascarado: mascararNome(nome) });
         }
 
         if (acao === "pedido_criar") {
@@ -624,9 +614,6 @@ export default async function handler(req, res) {
             const promessa = serializar("wh" + wh.id, async () => {
                 const parceiro = await parceiroPorCpf(cpf);
                 if (!parceiro) throw new ErroPublico("Cadastro não encontrado. Informe seu CPF novamente.", 404);
-                if (forma === "depois" && !(await podePagarDepois(parceiro))) {
-                    throw new ErroPublico("Pagar depois não está liberado para o seu cadastro. Escolha Pix ou dinheiro.", 403);
-                }
                 const r = await criarPedido({ wh, parceiro, itens, forma, vencimento, requestId });
                 invalidar("produtos_" + wh.id); // o estoque mudou: a próxima lista de produtos precisa ser nova
                 return r;
